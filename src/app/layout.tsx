@@ -98,7 +98,10 @@ export default function RootLayout({
     >
       <head>
         <link rel="preload" as="image" href="/ogpLogo.png" type="image/png" />
-        {/* Google サーチコンソール用の検証コードは必要に応じて追加 */}
+        <meta
+          name="google-site-verification"
+          content="IET_zg9SuUZYu3F83jVZQdlYu3ZGIGcumaTn9DyD1FE"
+        />
       </head>
 
       <body className="relative min-h-[100dvh] flex flex-col">
