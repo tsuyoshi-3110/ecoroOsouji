@@ -1,0 +1,9 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://ecoroOsouji.com
+
+# Sitemaps
+Sitemap: https://ecoroOsouji.com/sitemap.xml
