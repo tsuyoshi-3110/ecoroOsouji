@@ -60,7 +60,7 @@ export default function Page() {
         </p>
       </section>
 
-      <section className="rounded-xl border bg-white/70 p-5">
+      {/* <section className="rounded-xl border bg-white/70 p-5">
         <h2 className="font-semibold mb-2">よくある質問</h2>
         <details className="mb-2">
           <summary className="cursor-pointer font-medium">当日のお願いは可能ですか？</summary>
@@ -74,7 +74,7 @@ export default function Page() {
             条件を確認のうえ、適切に管理して対応可能です。事前にご相談ください。
           </p>
         </details>
-      </section>
+      </section> */}
 
       <section className="rounded-xl border bg-white/70 p-5">
         <h2 className="font-semibold mb-2">お問い合わせ</h2>
@@ -85,7 +85,7 @@ export default function Page() {
 
       {/* 内部リンク */}
       <nav className="text-sm underline">
-        <Link href="/products">サービス一覧へ</Link>
+        <Link href="/">トップ画面へ</Link>
       </nav>
 
       {/* FAQ構造化データ */}

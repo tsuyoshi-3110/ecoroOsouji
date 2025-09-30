@@ -45,9 +45,16 @@ export default function HomePage() {
         </h1>
 
         <p className="max-w-3xl mx-auto text-center leading-relaxed text-outline">
-          奈良市を中心に奈良県全域で、ハウスクリーニングを提供しています。
-          キッチン・浴室などの水回りから、リビングの徹底清掃、エアコン洗浄、定期プランまで。
-          ご家庭の状態やご要望に合わせて、無理なく続けられるプランをご提案します。
+          掃除屋S │ 奈良🦌汚れ退治の秘密結社。奈良市を中心に奈良県全域で、
+          <br className="hidden lg:block" />
+          奈良県民がまだ知らない“地域密着”の掃除屋さんとして、代表自ら丁寧に対応します。
+          <br className="hidden lg:block" />
+          大手にはない柔軟対応＆徹底洗浄で、主婦層から管理会社までリピート多数。お財布に優しい価格も好評です。
+          <br className="hidden lg:block" />
+          キッチン・浴室などの水回り、リビングの徹底清掃、エアコン洗浄、定期プランまでお任せください。
+          <br className="hidden lg:block" />
+          🧽「奈良の掃除屋をもっと身近に！」👉
+          フォローでプロの掃除術もチェック‼️
         </p>
 
         <TopVisibleSections />
