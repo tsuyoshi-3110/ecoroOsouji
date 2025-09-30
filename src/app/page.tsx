@@ -52,9 +52,6 @@ export default function HomePage() {
           大手にはない柔軟対応＆徹底洗浄で、主婦層から管理会社までリピート多数。お財布に優しい価格も好評です。
           <br className="hidden lg:block" />
           キッチン・浴室などの水回り、リビングの徹底清掃、エアコン洗浄、定期プランまでお任せください。
-          <br className="hidden lg:block" />
-          🧽「奈良の掃除屋をもっと身近に！」👉
-          フォローでプロの掃除術もチェック‼️
         </p>
 
         <TopVisibleSections />
