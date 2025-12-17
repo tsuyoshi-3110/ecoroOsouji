@@ -21,7 +21,7 @@ import { THEMES, ThemeKey } from "@/lib/themes";
 const DARK_KEYS: ThemeKey[] = ["brandH", "brandG", "brandI"];
 
 /* ===============================
-   多言語テキスト
+   多言語テキスト（添付系は optional）
 ================================ */
 type Strings = {
   reserveBtn: string;
@@ -41,6 +41,13 @@ type Strings = {
     emailFmt: string;
     message: string;
   };
+  // 追加（任意: 無ければフォールバック）
+  attachLabel?: string;
+  attachHelp?: string;
+  fileRemove?: string;
+  fileTooMany?: string;
+  fileTooBig?: string;
+  fileTypeErr?: string;
 };
 
 const STRINGS: Record<string, Strings> = {
@@ -62,6 +69,12 @@ const STRINGS: Record<string, Strings> = {
       emailFmt: "メール形式が不正です",
       message: "お問い合わせ内容は必須です",
     },
+    attachLabel: "ファイル添付（写真・PDF）",
+    attachHelp: "最大5件、各10MBまで。対応形式：JPEG / PNG / WebP / GIF / PDF",
+    fileRemove: "削除",
+    fileTooMany: "添付できるのは最大5件までです。",
+    fileTooBig: "ファイルサイズが大きすぎます（各10MBまで）。",
+    fileTypeErr: "対応していないファイル形式です。",
   },
   en: {
     reserveBtn: "Go to booking",
@@ -81,7 +94,15 @@ const STRINGS: Record<string, Strings> = {
       emailFmt: "Invalid email format",
       message: "Message is required",
     },
+    attachLabel: "Attachments (photos / PDF)",
+    attachHelp:
+      "Up to 5 files, 10MB each. Supported: JPEG / PNG / WebP / GIF / PDF",
+    fileRemove: "Remove",
+    fileTooMany: "You can attach up to 5 files.",
+    fileTooBig: "File size is too large (max 10MB each).",
+    fileTypeErr: "Unsupported file type.",
   },
+  // 他言語は既存のまま（添付系は ja→en にフォールバック）
   zh: {
     reserveBtn: "前往预约",
     title: "联系表单",
@@ -321,7 +342,7 @@ const STRINGS: Record<string, Strings> = {
     messagePh: "अपना प्रश्न या अनुरोध लिखें",
     submit: "भेजें",
     sending: "भेजा जा रहा है…",
-    sent: "भेज दिया गया। हम ईमेल से संपर्क करेंगे।",
+    sent: "भेज दिया गया। हम ईमेल से संपर्क करेंगे。",
     errors: {
       name: "नाम आवश्यक है",
       emailReq: "ईमेल आवश्यक है",
@@ -357,14 +378,27 @@ type FormValues = {
   name: string;
   email: string;
   message: string;
-  website?: string;
+  website?: string; // 蜜鉢
 };
+
+/* ===============================
+   添付の制限
+================================ */
+const MAX_FILES = 5;
+const MAX_SIZE_MB = 10;
+const ACCEPT = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "application/pdf",
+];
 
 /* ===============================
    本体
 ================================ */
 export default function MinimalInquiryForm() {
-  // --- ダーク判定（プロップ不要） ---
+  // ダーク判定
   const gradient = useThemeGradient();
   const isDark =
     !!gradient &&
@@ -374,12 +408,28 @@ export default function MinimalInquiryForm() {
       ) as ThemeKey) ?? "brandA"
     );
 
-  // --- 言語選択 ---
+  // 言語
   const { uiLang } = useUILang();
   const lang = (STRINGS[uiLang] ? uiLang : "ja") as keyof typeof STRINGS;
-  const t = STRINGS[lang];
+  const tRaw = STRINGS[lang];
+  // 添付系テキストはフォールバック
+  const t = {
+    ...tRaw,
+    attachLabel:
+      tRaw.attachLabel ?? STRINGS.ja.attachLabel ?? STRINGS.en.attachLabel!,
+    attachHelp:
+      tRaw.attachHelp ?? STRINGS.ja.attachHelp ?? STRINGS.en.attachHelp!,
+    fileRemove:
+      tRaw.fileRemove ?? STRINGS.ja.fileRemove ?? STRINGS.en.fileRemove!,
+    fileTooMany:
+      tRaw.fileTooMany ?? STRINGS.ja.fileTooMany ?? STRINGS.en.fileTooMany!,
+    fileTooBig:
+      tRaw.fileTooBig ?? STRINGS.ja.fileTooBig ?? STRINGS.en.fileTooBig!,
+    fileTypeErr:
+      tRaw.fileTypeErr ?? STRINGS.ja.fileTypeErr ?? STRINGS.en.fileTypeErr!,
+  };
 
-  // --- バリデーション ---
+  // バリデーション
   const schema = useMemo(
     () =>
       z.object({
@@ -401,31 +451,59 @@ export default function MinimalInquiryForm() {
     defaultValues: { name: "", email: "", message: "", website: "" },
   });
 
+  // 添付ファイル
+  const [files, setFiles] = useState<File[]>([]);
+
   const [done, setDone] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const onPickFiles = (list: FileList | null) => {
+    if (!list) return;
+    const next: File[] = [...files];
+    for (const f of Array.from(list)) {
+      if (!ACCEPT.includes(f.type)) {
+        setErrorMsg(t.fileTypeErr);
+        continue;
+      }
+      if (f.size > MAX_SIZE_MB * 1024 * 1024) {
+        setErrorMsg(t.fileTooBig);
+        continue;
+      }
+      if (next.length >= MAX_FILES) {
+        setErrorMsg(t.fileTooMany);
+        break;
+      }
+      next.push(f);
+    }
+    setFiles(next);
+  };
+
+  const removeAt = (idx: number) =>
+    setFiles((prev) => prev.filter((_, i) => i !== idx));
 
   const onSubmit = async (v: FormValues) => {
     setErrorMsg(null);
     setDone(null);
     try {
-      if (v.website) {
-        setDone("OK");
-        return;
-      }
+      // 常に FormData で送信（multipart）
+      const fd = new FormData();
+      fd.append("name", v.name);
+      fd.append("email", v.email);
+      fd.append("message", v.message);
+      fd.append("siteKey", SITE_KEY);
+      if (v.website) fd.append("website", v.website);
+      files.forEach((f) => fd.append("files", f, f.name));
+
       const res = await fetch("/api/contact/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: v.name,
-          email: v.email,
-          message: v.message,
-          siteKey: SITE_KEY,
-          website: v.website,
-        }),
+        body: fd, // ← Content-Type は自動付与
       });
-      const data = await res.json();
+
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "Failed to send");
+
       reset({ name: "", email: "", message: "", website: "" });
+      setFiles([]);
       setDone(t.sent);
     } catch (e: any) {
       setErrorMsg(
@@ -437,36 +515,35 @@ export default function MinimalInquiryForm() {
     }
   };
 
-  // --- スタイル（shadcn/ui の前景色に勝つため !text-* を使用） ---
-  const outerText = isDark ? "text-white" : "text-black";
+  // スタイル（このフォームは常に白背景＋黒文字で固定）
+  const outerText = "text-black";
   const labelClass = clsx("text-sm font-medium", outerText);
-  const helpClass = clsx(
-    "mt-1 text-xs",
-    isDark ? "text-white/70" : "text-black/70"
-  );
+  const helpClass = "mt-1 text-xs text-black/70";
+
+  // 各フィールドの見た目
   const fieldClass = clsx(
-    "block w-full min-w-0 max-w-full bg-transparent",
-    isDark
-      ? "!text-white placeholder:text-white/70 placeholder:opacity-100 border-white/40 focus-visible:ring-1 focus-visible:ring-white/60"
-      : "!text-black placeholder:text-black/50 placeholder:opacity-100 border-black/30 focus-visible:ring-1 focus-visible:ring-black/40"
+    "block w-full min-w-0 max-w-full",
+    "bg-white/50 text-black",
+    "placeholder:text-black/50 placeholder:opacity-100",
+    "border border-black/30",
+    "focus-visible:ring-1 focus-visible:ring-black/40"
   );
-  const cardClass = clsx(
-    "rounded-2xl border shadow-sm backdrop-blur-md",
-    isDark
-      ? " border-white/20 text-white"
-      : "bg-white/10 border-black/10 text-black"
-  );
-  const headerBorder = isDark ? "border-white/15" : "border-black/10";
+
+  // カード全体の見た目（フォームの背景）
+  const cardClass =
+    "rounded-2xl border shadow-sm backdrop-blur-md bg-white/50 border-black/10 text-black";
+
+  // ヘッダー下のボーダー
+  const headerBorder = "border-black/10";
 
   return (
     <div className={clsx("space-y-4", outerText)}>
-      {/* 予約ボタン（多言語） */}
+      {/* 予約ボタン */}
       <div>
         <Link
           href="apply"
           className={clsx(
-            "inline-flex items-center rounded-xl px-4 py-2 text-sm shadow-sm backdrop-blur-sm transition-colors bg-black hover:bg-black/90 text-white",
-
+            "inline-flex items-center rounded-xl px-4 py-2 text-sm shadow-sm backdrop-blur-sm transition-colors bg-black hover:bg-black/90 text-white"
           )}
         >
           {t.reserveBtn}
@@ -474,7 +551,12 @@ export default function MinimalInquiryForm() {
       </div>
 
       <div className={cardClass}>
-        <div className={clsx("px-5 pt-5 pb-3 border-b rounded-t-2xl", headerBorder)}>
+        <div
+          className={clsx(
+            "px-5 pt-5 pb-3 border-b rounded-t-2xl",
+            headerBorder
+          )}
+        >
           <h2 className="text-base font-semibold">{t.title}</h2>
           <p className={helpClass}>{t.help}</p>
         </div>
@@ -541,6 +623,83 @@ export default function MinimalInquiryForm() {
             )}
           </div>
 
+          {/* 添付 */}
+          <div className="grid gap-2">
+            <label className={labelClass}>{t.attachLabel}</label>
+            <div>
+              <input
+                type="file"
+                accept={ACCEPT.join(",")}
+                multiple
+                onChange={(e) => onPickFiles(e.target.files)}
+                className={clsx(
+                  "block w-full text-sm file:mr-3 file:rounded-md file:border file:px-3 file:py-1.5",
+                  isDark
+                    ? "file:bg-white file:text-black"
+                    : "file:bg-black file:text-white",
+                  fieldClass
+                )}
+              />
+              <p className={helpClass}>{t.attachHelp}</p>
+            </div>
+
+            {/* プレビュー */}
+            {files.length > 0 && (
+              <ul className="mt-2 space-y-2">
+                {files.map((f, i) => {
+                  const isImage = f.type.startsWith("image/");
+                  const url = isImage ? URL.createObjectURL(f) : null;
+                  return (
+                    <li
+                      key={`${f.name}-${i}`}
+                      className={clsx(
+                        "flex items-center gap-3 rounded-md border px-3 py-2",
+                        isDark ? "border-white/20" : "border-black/10"
+                      )}
+                    >
+                      {isImage ? (
+                        // 画像サムネイル
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={url!}
+                          alt={f.name}
+                          className="h-12 w-12 rounded object-cover"
+                          onLoad={() => url && URL.revokeObjectURL(url)}
+                        />
+                      ) : (
+                        // PDF アイコン代替（テキスト）
+                        <div
+                          className={clsx(
+                            "h-12 w-12 flex items-center justify-center rounded",
+                            isDark ? "bg-white/20" : "bg-black/10"
+                          )}
+                        >
+                          PDF
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm">{f.name}</p>
+                        <p className="text-xs opacity-70">
+                          {(f.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeAt(i)}
+                        className={clsx(
+                          "text-xs underline",
+                          isDark ? "text-white" : "text-black"
+                        )}
+                      >
+                        {t.fileRemove}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
           {/* 通知 */}
           {errorMsg && (
             <div
@@ -556,7 +715,9 @@ export default function MinimalInquiryForm() {
             <div
               className={clsx(
                 "rounded-md p-2 text-sm",
-                isDark ? "bg-emerald-950/60 text-emerald-200" : "bg-green-50 text-green-700"
+                isDark
+                  ? "bg-emerald-950/60 text-emerald-200"
+                  : "bg-green-50 text-green-700"
               )}
             >
               {done}

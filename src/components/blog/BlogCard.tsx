@@ -6,20 +6,21 @@ import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash } from "lucide-react";
+import { Pencil, Trash, Tag } from "lucide-react";
 import ProductMedia from "@/components/ProductMedia";
 import clsx from "clsx";
 import { useThemeGradient } from "@/lib/useThemeGradient";
 import { THEMES, type ThemeKey } from "@/lib/themes";
 import { useEffect, useMemo, useState } from "react";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { useUILang } from "@/lib/atoms/uiLangAtom";
+import { doc, getDoc } from "firebase/firestore";
+import { SITE_KEY } from "@/lib/atoms/siteKeyAtom";
 
-/* ===================== 定数 ===================== */
 const DARK_KEYS: ThemeKey[] = ["brandG", "brandH", "brandI"];
 
-/* ===================== レガシー互換：body/media → blocks ===================== */
+// レガシー互換
 function legacyToBlocks(post: BlogPost): BlogBlock[] {
   if (Array.isArray(post.blocks) && post.blocks.length > 0) {
     return post.blocks as BlogBlock[];
@@ -38,15 +39,13 @@ function legacyToBlocks(post: BlogPost): BlogBlock[] {
       type: m.type,
       url: m.url,
       path: (m as any).path,
-      title:
-        (m as any).title ?? (m as any).caption ?? (m as any).alt ?? "",
+      title: (m as any).title ?? (m as any).caption ?? (m as any).alt ?? "",
       caption: (m as any).caption,
     } as unknown as BlogBlock);
   }
   return result;
 }
 
-/* ===================== 型ガード ===================== */
 function isMediaBlock(
   b: BlogBlock
 ): b is BlogBlock & { type: "image" | "video"; url?: string } {
@@ -59,7 +58,7 @@ function hasKey<K extends "text" | "caption" | "title">(
   return typeof (b as any)?.[k] === "string";
 }
 
-/* ===================== ローカライズ抽出 ===================== */
+// ローカライズ抽出（そのまま）
 function pickLocalized(
   post: BlogPost,
   uiLang: string
@@ -91,7 +90,6 @@ function pickLocalized(
   return { title: tTitle, blocks: tBlocks };
 }
 
-/* ===================== 本体 ===================== */
 type Props = {
   post: BlogPost;
   onDelete?: (post: BlogPost) => Promise<void> | void;
@@ -113,21 +111,51 @@ export default function BlogCard({
       (k) => THEMES[k] === gradientClass && DARK_KEYS.includes(k)
     );
 
-  // Jotai: UI表示言語
   const { uiLang } = useUILang();
 
-  // ローカライズ済みデータ
   const { title: locTitle, blocks: locBlocks } = useMemo(
     () => pickLocalized(post, uiLang),
     [post, uiLang]
   );
 
-  // ログイン状態（編集/削除の制御）
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => setIsLoggedIn(!!u));
     return () => unsub();
   }, []);
+
+  // カテゴリ名の取得（表示用）
+  const [catLabel, setCatLabel] = useState<string>("");
+  const catKey = (post as any)?.categoryKey ?? "";
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        if (!SITE_KEY || !catKey) {
+          if (alive) setCatLabel("");
+          return;
+        }
+
+        const snap = await getDoc(
+          doc(db, "siteBlogs", SITE_KEY, "meta", "config")
+        );
+        const raw = (snap.data() as any)?.categories;
+        const cats: Array<{ key: string; label: string }> = Array.isArray(raw)
+          ? raw
+          : [];
+
+        const hit = cats.find((c) => c.key === catKey);
+        if (alive) setCatLabel(hit?.label ?? "");
+      } catch {
+        if (alive) setCatLabel("");
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [catKey]); // ← ここを catKey のみに
 
   return (
     <article
@@ -141,12 +169,9 @@ export default function BlogCard({
       )}
     >
       <div
-        className={clsx(
-          "p-4 space-y-4",
-          isDark ? "text-white" : "text-black"
-        )}
+        className={clsx("p-4 space-y-4", isDark ? "text-white" : "text-black")}
       >
-        {/* 記事タイトル（ローカライズ済み） */}
+        {/* タイトル */}
         <h3
           className={clsx(
             "font-semibold text-2xl leading-snug",
@@ -156,7 +181,15 @@ export default function BlogCard({
           {locTitle}
         </h3>
 
-        {/* 本文＆メディア（ローカライズ済みブロック） */}
+        {/* カテゴリバッジ（あれば） */}
+        {catLabel && (
+          <div className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs opacity-80">
+            <Tag className="h-3.5 w-3.5" />
+            <span>{catLabel}</span>
+          </div>
+        )}
+
+        {/* 本文＆メディア */}
         <div className="space-y-4">
           {locBlocks.map((b: BlogBlock, idx: number) => {
             if (b.type === "p") {
@@ -209,7 +242,7 @@ export default function BlogCard({
           })}
         </div>
 
-        {/* 作成日時（そのまま） */}
+        {/* 作成日時 */}
         <div
           className={clsx(
             "text-xs",
@@ -223,7 +256,7 @@ export default function BlogCard({
             : ""}
         </div>
 
-        {/* 操作行（ログイン時のみ表示） */}
+        {/* 操作（ログイン時） */}
         {isLoggedIn && (
           <div className="pt-2 flex items-center gap-2">
             <Button
@@ -237,15 +270,17 @@ export default function BlogCard({
               </Link>
             </Button>
 
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={() => onDelete?.(post)}
-              disabled={deleting}
-            >
-              <Trash className="mr-1.5 h-4 w-4" />
-              {deleting ? "削除中…" : "削除"}
-            </Button>
+            {onDelete && (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => onDelete?.(post)}
+                disabled={deleting}
+              >
+                <Trash className="mr-1.5 h-4 w-4" />
+                {deleting ? "削除中…" : "削除"}
+              </Button>
+            )}
           </div>
         )}
       </div>

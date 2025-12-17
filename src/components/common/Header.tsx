@@ -1,7 +1,7 @@
 // components/common/Header.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,6 @@ import {
   Sheet,
   SheetContent,
   SheetHeader,
-  SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
 import Image from "next/image";
@@ -22,19 +21,22 @@ import UILangFloatingPicker from "../UILangFloatingPicker";
 import { useUILang, type UILang } from "@/lib/atoms/uiLangAtom";
 import { SITE_KEY } from "@/lib/atoms/siteKeyAtom";
 import { doc, onSnapshot } from "firebase/firestore";
+import { siteName } from "@/config/site";
 
 /* ===== 多言語辞書 ===== */
 type Keys =
   | "home"
   | "menuTitle"
+  | "projects"
   | "products"
+  | "productsEC"
   | "staffs"
   | "pricing"
   | "areas"
   | "stores"
   | "story"
   | "blog"
-  | "news"      // ★ 追加
+  | "news"
   | "company"
   | "reserve"
   | "contact"
@@ -42,20 +44,25 @@ type Keys =
   | "timeline"
   | "community"
   | "analytics"
-  | "admin";
+  | "admin"
+  | "aiChat"
+  | "hours"
+  | "business-card";
 
 const T: Record<UILang, Record<Keys, string>> = {
   ja: {
     menuTitle: "メニュー",
     home: "ホーム",
-    products: "施工実績",
+    projects: "施工実績",
+    products: "商品一覧",
+    productsEC: "オンラインショップ",
     staffs: "スタッフ",
     pricing: "料金",
     areas: "対応エリア",
     stores: "店舗一覧",
     story: "私たちの思い",
-    blog: "ブログ",
-    news: "お知らせ", // ★ 追加
+    blog: "取材はこちら",
+    news: "お知らせ",
     company: "会社概要",
     reserve: "ご予約はこちら",
     contact: "お問い合わせ",
@@ -64,18 +71,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "コミュニティ",
     analytics: "分析",
     admin: "管理者ログイン",
+    aiChat: "AIサポート",
+    hours: "営業時間",
+    "business-card": "デジタル名刺",
   },
   en: {
     menuTitle: "Menu",
     home: "Home",
-    products: "Projects",
+    projects: "Projects",
+    products: "Products",
+    productsEC: "Online Store",
     staffs: "Staff",
     pricing: "Pricing",
     areas: "Service Areas",
     stores: "Store List",
     story: "Our Story",
-    blog: "Blog",
-    news: "News", // ★ 追加
+    blog: "Media / Press Inquiries",
+    news: "News",
     company: "Company Profile",
     reserve: "Book Here",
     contact: "Contact",
@@ -84,18 +96,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "Community",
     analytics: "Analytics",
     admin: "Administrator Login",
+    aiChat: "AI Chat",
+    hours: "Hours",
+    "business-card": "Business Card",
   },
   zh: {
     menuTitle: "菜单",
     home: "首页",
-    products: "施工案例",
+    projects: "施工案例",
+    products: "商品一览",
+    productsEC: "网店",
     staffs: "员工",
     pricing: "价格",
     areas: "服务区域",
     stores: "门店列表",
     story: "我们的理念",
-    blog: "博客",
-    news: "公告", // ★ 追加（お知らせ）
+    blog: "媒体采访",
+    news: "公告",
     company: "公司简介",
     reserve: "点击预约",
     contact: "联系我们",
@@ -104,18 +121,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "社区",
     analytics: "分析",
     admin: "管理员登录",
+    aiChat: "AI聊天",
+    hours: "营业时间",
+    "business-card": "电子名片",
   },
   "zh-TW": {
     menuTitle: "選單",
     home: "首頁",
-    products: "施工案例",
+    projects: "施工案例",
+    products: "商品一覽",
+    productsEC: "網路商店",
     staffs: "員工",
     pricing: "價格",
     areas: "服務範圍",
     stores: "門市列表",
     story: "我們的理念",
-    blog: "部落格",
-    news: "最新消息", // ★ 追加
+    blog: "媒體採訪",
+    news: "最新消息",
     company: "公司簡介",
     reserve: "預約請點此",
     contact: "聯絡我們",
@@ -124,18 +146,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "社群",
     analytics: "分析",
     admin: "管理者登入",
+    aiChat: "AI聊天",
+    hours: "營業時間",
+    "business-card": "電子名片",
   },
   ko: {
     menuTitle: "메뉴",
     home: "홈",
-    products: "시공 사례",
+    projects: "시공 사례",
+    products: "상품 목록",
+    productsEC: "온라인 스토어",
     staffs: "스태프",
     pricing: "요금",
     areas: "서비스 지역",
     stores: "매장 목록",
     story: "우리의 이야기",
-    blog: "블로그",
-    news: "공지사항", // ★ 追加
+    blog: "취재 문의",
+    news: "공지사항",
     company: "회사 소개",
     reserve: "예약하기",
     contact: "문의하기",
@@ -144,18 +171,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "커뮤니티",
     analytics: "분석",
     admin: "관리자 로그인",
+    aiChat: "AI 채팅",
+    hours: "영업시간",
+    "business-card": "디지털 명함",
   },
   fr: {
     menuTitle: "Menu",
     home: "Accueil",
-    products: "Réalisations",
+    projects: "Réalisations",
+    products: "Produits",
+    productsEC: "Boutique en ligne",
     staffs: "Équipe",
     pricing: "Tarifs",
     areas: "Zones desservies",
     stores: "Liste des magasins",
     story: "Notre histoire",
-    blog: "Blog",
-    news: "Actualités", // ★ 追加
+    blog: "Demandes de presse",
+    news: "Actualités",
     company: "Profil de l’entreprise",
     reserve: "Réserver ici",
     contact: "Contact",
@@ -164,18 +196,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "Communauté",
     analytics: "Analyses",
     admin: "Connexion administrateur",
+    aiChat: "Chat IA",
+    hours: "Horaires",
+    "business-card": "Carte de visite numérique",
   },
   es: {
     menuTitle: "Menú",
     home: "Inicio",
-    products: "Proyectos",
+    projects: "Proyectos",
+    products: "Productos",
+    productsEC: "Tienda en línea",
     staffs: "Equipo",
     pricing: "Precios",
     areas: "Áreas de servicio",
     stores: "Lista de tiendas",
     story: "Nuestra historia",
-    blog: "Blog",
-    news: "Noticias", // ★ 追加
+    blog: "Solicitudes de prensa",
+    news: "Noticias",
     company: "Perfil de la empresa",
     reserve: "Reservar aquí",
     contact: "Contacto",
@@ -184,18 +221,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "Comunidad",
     analytics: "Analítica",
     admin: "Inicio de sesión de administrador",
+    aiChat: "Chat IA",
+    hours: "Horario",
+    "business-card": "Tarjeta de presentación digital",
   },
   de: {
     menuTitle: "Menü",
     home: "Startseite",
-    products: "Referenzen",
+    projects: "Referenzen",
+    products: "Produkte",
+    productsEC: "Online-Shop",
     staffs: "Team",
     pricing: "Preise",
     areas: "Einsatzgebiete",
     stores: "Filialübersicht",
     story: "Unsere Geschichte",
-    blog: "Blog",
-    news: "Neuigkeiten", // ★ 追加
+    blog: "Presseanfragen",
+    news: "Neuigkeiten",
     company: "Unternehmensprofil",
     reserve: "Hier buchen",
     contact: "Kontakt",
@@ -204,18 +246,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "Community",
     analytics: "Analytik",
     admin: "Administrator-Anmeldung",
+    aiChat: "AI-Chat",
+    hours: "Öffnungszeiten",
+    "business-card": "Digitale Visitenkarte",
   },
   pt: {
     menuTitle: "Menu",
     home: "Início",
-    products: "Projetos",
+    projects: "Projetos",
+    products: "Produtos",
+    productsEC: "Loja Online",
     staffs: "Equipe",
     pricing: "Preços",
     areas: "Áreas de atendimento",
     stores: "Lista de lojas",
     story: "Nossa história",
-    blog: "Blog",
-    news: "Notícias", // ★ 追加
+    blog: "Solicitações de imprensa",
+    news: "Notícias",
     company: "Perfil da empresa",
     reserve: "Reservar aqui",
     contact: "Contato",
@@ -224,18 +271,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "Comunidade",
     analytics: "Análises",
     admin: "Login do administrador",
+    aiChat: "Chat IA",
+    hours: "Horário",
+    "business-card": "Cartão de visita digital",
   },
   it: {
     menuTitle: "Menu",
     home: "Home",
-    products: "Progetti",
+    projects: "Progetti",
+    products: "Prodotti",
+    productsEC: "Negozio online",
     staffs: "Staff",
     pricing: "Prezzi",
     areas: "Aree servite",
     stores: "Elenco negozi",
     story: "La nostra storia",
-    blog: "Blog",
-    news: "Notizie", // ★ 追加
+    blog: "Richieste stampa",
+    news: "Notizie",
     company: "Profilo aziendale",
     reserve: "Prenota qui",
     contact: "Contatto",
@@ -244,18 +296,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "Community",
     analytics: "Analitiche",
     admin: "Accesso amministratore",
+    aiChat: "Chat IA",
+    hours: "Orari",
+    "business-card": "Biglietto da visita digitale",
   },
   ru: {
     menuTitle: "Меню",
     home: "Главная",
-    products: "Наши работы",
+    projects: "Наши работы",
+    products: "Товары",
+    productsEC: "Интернет-магазин",
     staffs: "Сотрудники",
     pricing: "Цены",
     areas: "Районы обслуживания",
     stores: "Список магазинов",
     story: "Наша история",
-    blog: "Блог",
-    news: "Новости", // ★ 追加
+    blog: "Запросы СМИ",
+    news: "Новости",
     company: "О компании",
     reserve: "Онлайн-запись",
     contact: "Контакты",
@@ -264,18 +321,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "Сообщество",
     analytics: "Аналитика",
     admin: "Вход администратора",
+    aiChat: "AI-чат",
+    hours: "Часы работы",
+    "business-card": "Цифровая визитка",
   },
   th: {
     menuTitle: "เมนู",
     home: "หน้าแรก",
-    products: "ผลงาน",
+    projects: "ผลงาน",
+    products: "รายการสินค้า",
+    productsEC: "ร้านค้าออนไลน์",
     staffs: "ทีมงาน",
     pricing: "ราคา",
     areas: "พื้นที่ให้บริการ",
     stores: "รายชื่อร้านค้า",
     story: "เรื่องราวของเรา",
-    blog: "บล็อก",
-    news: "ข่าวสาร", // ★ 追加
+    blog: "ติดต่อสื่อมวลชน",
+    news: "ข่าวสาร",
     company: "ข้อมูลบริษัท",
     reserve: "จองที่นี่",
     contact: "ติดต่อเรา",
@@ -284,18 +346,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "คอมมูนิตี้",
     analytics: "วิเคราะห์",
     admin: "เข้าสู่ระบบผู้ดูแล",
+    aiChat: "แชต AI",
+    hours: "เวลาเปิดทำการ",
+    "business-card": "นามบัตรดิจิทัล",
   },
   vi: {
     menuTitle: "Menu",
     home: "Trang chủ",
-    products: "Dự án đã làm",
+    projects: "Dự án đã làm",
+    products: "Sản phẩm",
+    productsEC: "Cửa hàng trực tuyến",
     staffs: "Nhân viên",
     pricing: "Bảng giá",
     areas: "Khu vực phục vụ",
     stores: "Danh sách cửa hàng",
     story: "Câu chuyện của chúng tôi",
-    blog: "Blog",
-    news: "Tin tức", // ★ 追加
+    blog: "Yêu cầu phỏng vấn",
+    news: "Tin tức",
     company: "Hồ sơ công ty",
     reserve: "Đặt lịch tại đây",
     contact: "Liên hệ",
@@ -304,18 +371,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "Cộng đồng",
     analytics: "Phân tích",
     admin: "Đăng nhập quản trị",
+    aiChat: "Trò chuyện AI",
+    hours: "Giờ làm việc",
+    "business-card": "Danh thiếp số",
   },
   id: {
     menuTitle: "Menu",
     home: "Beranda",
-    products: "Portofolio",
+    projects: "Portofolio",
+    products: "Produk",
+    productsEC: "Toko daring",
     staffs: "Staf",
     pricing: "Harga",
     areas: "Area layanan",
     stores: "Daftar toko",
     story: "Kisah kami",
-    blog: "Blog",
-    news: "Berita", // ★ 追加
+    blog: "Permintaan liputan media",
+    news: "Berita",
     company: "Profil perusahaan",
     reserve: "Pesan di sini",
     contact: "Kontak",
@@ -324,18 +396,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "Komunitas",
     analytics: "Analitik",
     admin: "Masuk admin",
+    aiChat: "Obrolan AI",
+    hours: "Jam operasional",
+    "business-card": "Kartu nama digital",
   },
   hi: {
     menuTitle: "मेनू",
     home: "होम",
-    products: "परियोजनाएँ",
+    projects: "परियोजनाएँ",
+    products: "उत्पाद",
+    productsEC: "ऑनलाइन स्टोर",
     staffs: "स्टाफ़",
     pricing: "मूल्य",
     areas: "सेवा क्षेत्र",
     stores: "स्टोर सूची",
     story: "हमारी कहानी",
-    blog: "ब्लॉग",
-    news: "समाचार", // ★ 追加
+    blog: "मीडिया पूछताछ",
+    news: "समाचार",
     company: "कंपनी प्रोफ़ाइल",
     reserve: "यहाँ बुक करें",
     contact: "संपर्क करें",
@@ -344,18 +421,23 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "समुदाय",
     analytics: "विश्लेषण",
     admin: "प्रशासक लॉगिन",
+    aiChat: "AI चैट",
+    hours: "समय",
+    "business-card": "डिजिटल विज़िटिंग कार्ड",
   },
   ar: {
     menuTitle: "القائمة",
     home: "الصفحة الرئيسية",
-    products: "المشاريع المنجزة",
+    projects: "المشاريع المنجزة",
+    products: "قائمة المنتجات",
+    productsEC: "المتجر الإلكتروني",
     staffs: "الفريق",
     pricing: "الأسعار",
     areas: "مناطق الخدمة",
     stores: "قائمة المتاجر",
     story: "قصتنا",
-    blog: "المدونة",
-    news: "الأخبار", // ★ 追加
+    blog: "استفسارات إعلامية",
+    news: "الأخبار",
     company: "نبذة عن الشركة",
     reserve: "احجز هنا",
     contact: "اتصل بنا",
@@ -364,9 +446,13 @@ const T: Record<UILang, Record<Keys, string>> = {
     community: "المجتمع",
     analytics: "التحليلات",
     admin: "تسجيل دخول المسؤول",
+    aiChat: "دردشة الذكاء الاصطناعي",
+    hours: "ساعات العمل",
+    "business-card": "بطاقة عمل رقمية",
   },
 };
 
+/* ===== 以下は元コードと同一 ===== */
 const HEADER_H = "3rem";
 const TRIPLE_TAP_INTERVAL_MS = 500;
 const IGNORE_SELECTOR = "a,button,input,select,textarea,[role='button']";
@@ -374,91 +460,119 @@ const IGNORE_SELECTOR = "a,button,input,select,textarea,[role='button']";
 /* ===== メニュー定義 ===== */
 const MENU_ITEMS: { key: keyof (typeof T)["ja"]; href: string }[] = [
   { key: "home", href: "/" },
+  { key: "productsEC", href: "/productsEC" },
   { key: "products", href: "/products" },
+  { key: "projects", href: "/projects" },
   { key: "staffs", href: "/staffs" },
   { key: "pricing", href: "/menu" },
+  { key: "hours", href: "/hours" },
   { key: "areas", href: "/areas" },
   { key: "stores", href: "/stores" },
   { key: "story", href: "/about" },
   { key: "blog", href: "/blog" },
-  { key: "news", href: "/news" }, // ★ 追加
+  { key: "news", href: "/news" },
   { key: "company", href: "/company" },
   { key: "contact", href: "/contact" },
   { key: "reserve", href: "/apply" },
+  { key: "aiChat", href: "/ai" },
   { key: "partners", href: "/jobApp" },
 ];
 
-/* Firestore の editable 設定の型（必要分のみ） */
 type EditableSettings = {
   visibleMenuKeys?: string[];
-  i18n?: {
-    enabled?: boolean;
-    langs?: UILang[]; // UI 表示を許可する言語（ja を含むことを推奨）
-  };
+  i18n?: { enabled?: boolean; langs?: UILang[] };
+  businessHours?: { enabled?: boolean };
 };
 
 export default function Header({ className = "" }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const gradient = useThemeGradient();
   const logoUrl = useHeaderLogoUrl();
+
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  useEffect(() => {
+    const unsub = auth.onAuthStateChanged((user) => setIsLoggedIn(!!user));
+    return () => unsub();
+  }, []);
+
   const { uiLang } = useUILang();
 
-  /* Firestore: 表示対象メニュー */
   const [visibleMenuKeys, setVisibleMenuKeys] = useState<string[]>(
     MENU_ITEMS.map((m) => m.key)
   );
-
-  /* Firestore: i18n（翻訳）設定を購読（ピッカー表示制御に使用） */
   const [i18nEnabled, setI18nEnabled] = useState<boolean>(true);
 
   useEffect(() => {
     const ref = doc(db, "siteSettingsEditable", SITE_KEY);
+
     const unsubscribe = onSnapshot(
       ref,
       (snap) => {
         if (!snap.exists()) return;
         const data = snap.data() as EditableSettings;
 
-        if (Array.isArray(data.visibleMenuKeys)) {
-          setVisibleMenuKeys(data.visibleMenuKeys);
-        }
+        // i18n ON/OFF
+        setI18nEnabled(
+          typeof data.i18n?.enabled === "boolean" ? data.i18n.enabled : true
+        );
 
-        const enabled =
-          typeof data.i18n?.enabled === "boolean" ? data.i18n!.enabled! : true;
-        setI18nEnabled(enabled);
+        // ヘッダーで許可しているキーだけを使う
+        const allowedKeys = new Set(MENU_ITEMS.map((m) => m.key));
+
+        const baseFromDoc = Array.isArray(data.visibleMenuKeys)
+          ? data.visibleMenuKeys.filter(
+              (k): k is (typeof MENU_ITEMS)[number]["key"] =>
+                allowedKeys.has(k as any)
+            )
+          : MENU_ITEMS.map((m) => m.key);
+
+        const nextSet = new Set(baseFromDoc);
+
+        const bhEnabled = data.businessHours?.enabled === true;
+        if (bhEnabled) nextSet.add("hours");
+        else nextSet.delete("hours");
+
+        const next = Array.from(nextSet);
+
+        console.debug("[Header] visibleMenuKeys <-", {
+          fromDoc: data.visibleMenuKeys,
+          bhEnabled,
+          final: next,
+        });
+
+        setVisibleMenuKeys(next);
       },
       (error) => {
         console.error("メニュー/翻訳設定購読エラー:", error);
       }
     );
+
     return () => unsubscribe();
   }, []);
 
-  /* ログイン状態 */
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) =>
-      setIsLoggedIn(!!user)
-    );
-    return () => unsubscribe();
-  }, []);
-
-  /* グラデーション */
   const gradientClass = gradient
     ? `bg-gradient-to-b ${gradient}`
     : "bg-gray-100";
 
-  /* ダーク判定（テーマキーから） */
-  const darkKeys: ThemeKey[] = ["brandH", "brandG", "brandI"];
-  const currentKey = (Object.entries(THEMES).find(
-    ([, v]) => v === gradient
-  )?.[0] ?? null) as ThemeKey | null;
-  const isDark = currentKey ? darkKeys.includes(currentKey) : false;
+  const isDark = useMemo(() => {
+    const darkKeys: ThemeKey[] = ["brandH", "brandG", "brandI"];
+    if (!gradient) return false;
+    return darkKeys.some((k) => gradient === THEMES[k]);
+  }, [gradient]);
 
-  /* i18n：RTL 言語ならスライドの文脈方向を反転 */
   const rtl = uiLang === "ar";
 
-  /* 管理者リンクの3タップ検出 */
+  // 日本語固定ラベル（必要ならここに "business-card" を追加してもOK）
+  const JP_ALWAYS = new Set<Keys>([
+    "timeline",
+    "community",
+    "analytics",
+    "admin",
+  ]);
+  const labelOf = (k: Keys) =>
+    JP_ALWAYS.has(k) ? T.ja[k] : (T[uiLang] ?? T.ja)[k];
+
+  // 管理者リンク 3タップ
   const [showAdminLink, setShowAdminLink] = useState(false);
   const tapCountRef = useRef(0);
   const lastTapAtRef = useRef(0);
@@ -482,7 +596,6 @@ export default function Header({ className = "" }: { className?: string }) {
       lastTapAtRef.current = now;
       return;
     }
-
     tapCountRef.current += 1;
     lastTapAtRef.current = now;
 
@@ -521,10 +634,10 @@ export default function Header({ className = "" }: { className?: string }) {
             unoptimized
           />
         )}
-        HOUSE CLEAR
+        {siteName}
       </Link>
 
-      {/* ハンバーガーメニュー */}
+      {/* ハンバーガー */}
       <div>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
@@ -541,28 +654,27 @@ export default function Header({ className = "" }: { className?: string }) {
             </Button>
           </SheetTrigger>
 
-          {/* === スライド（「メニュー」を最上部に固定表示） === */}
+          {/* === スライド === */}
           <SheetContent
             side="right"
             className={clsx(
               "flex h-dvh min-h-0 flex-col p-0",
-              gradient && "bg-gradient-to-b",
+              gradient && "bg-linear-to-b",
               gradient || "bg-gray-100",
-              // ▼ 色切替 + 線を太く + アイコンサイズを拡大（例: 28px）
               isDark
-                ? "[&>button]:text-white [&>button>svg]:!text-white [&>button>svg]:stroke-[3] [&>button>svg]:w-7 [&>button>svg]:h-6"
-                : "[&>button]:text-black [&>button>svg]:!text-black [&>button>svg]:stroke-[3] [&>button>svg]:w-7 [&>button>svg]:h-6"
+                ? "[&>button]:text-white [&>button>svg]:text-white! [&>button>svg]:stroke-3 [&>button>svg]:w-7 [&>button>svg]:h-6"
+                : "[&>button]:text-black [&>button>svg]:text-black! [&>button>svg]:stroke-3 [&>button>svg]:w-7 [&>button>svg]:h-6"
             )}
             dir={rtl ? "rtl" : "ltr"}
           >
             {/* 視覚タイトル */}
             <SheetHeader className="pt-4 px-4">
-              <SheetTitle className="text-center text-xl !text-white text-outline">
+              <h2 className="text-center text-xl text-white text-outline">
                 {(T[uiLang] ?? T.ja).menuTitle}
-              </SheetTitle>
+              </h2>
             </SheetHeader>
 
-            {/* 中央メニュー（上下方向のセンターに配置） */}
+            {/* 中央メニュー（上下センター） */}
             <div
               className="flex-1 min-h-0 overflow-y-auto [scrollbar-width:thin] px-6"
               onPointerDown={handleSecretTap}
@@ -577,7 +689,7 @@ export default function Header({ className = "" }: { className?: string }) {
                     onClick={() => setOpen(false)}
                     className="text-lg text-white text-outline"
                   >
-                    {(T[uiLang] ?? T.ja)[key]}
+                    {labelOf(key as Keys)}
                   </Link>
                 ))}
               </nav>
@@ -590,7 +702,7 @@ export default function Header({ className = "" }: { className?: string }) {
               )}
             </div>
 
-            {/* フッター（下詰め） */}
+            {/* フッター */}
             <div className="border-t border-white/30 px-6 py-4">
               <div className="flex flex-col items-center gap-2">
                 {isLoggedIn && (
@@ -600,21 +712,29 @@ export default function Header({ className = "" }: { className?: string }) {
                       onClick={() => setOpen(false)}
                       className="text-center text-lg text-white text-outline"
                     >
-                      {(T[uiLang] ?? T.ja).timeline}
+                      {labelOf("timeline")}
                     </Link>
                     <Link
                       href="/community"
                       onClick={() => setOpen(false)}
                       className="text-center text-lg text-white text-outline"
                     >
-                      {(T[uiLang] ?? T.ja).community}
+                      {labelOf("community")}
                     </Link>
                     <Link
                       href="/analytics"
                       onClick={() => setOpen(false)}
                       className="text-center text-lg text-white text-outline"
                     >
-                      {(T[uiLang] ?? T.ja).analytics}
+                      {labelOf("analytics")}
+                    </Link>
+                    {/* ★ 電子名刺リンク（ログイン時表示） */}
+                    <Link
+                      href="/business-card"
+                      onClick={() => setOpen(false)}
+                      className="text-center text-lg text-white text-outline"
+                    >
+                      {labelOf("business-card")}
                     </Link>
                   </>
                 )}
@@ -625,7 +745,7 @@ export default function Header({ className = "" }: { className?: string }) {
                     onClick={() => setOpen(false)}
                     className="text-center text-lg text-white text-outline"
                   >
-                    {(T[uiLang] ?? T.ja).admin}
+                    {labelOf("admin")}
                   </Link>
                 )}
               </div>
